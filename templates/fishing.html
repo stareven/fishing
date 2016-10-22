@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title }}</title>
+
+    <!-- Bootstrap -->
+    <link href="http://cdn.bootcss.com/bootstrap/3.3.0/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+    <!--[if lt IE 9]>
+      <script src="http://cdn.bootcss.com/html5shiv/3.7.2/html5shiv.min.js"></script>
+      <script src="http://cdn.bootcss.com/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+
+    <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+    <script type="text/javascript" src="http://cdn.bootcss.com/jquery/1.11.1/jquery.min.js"></script>
+    <!-- Include all compiled plugins (below), or include individual files as needed -->
+    <script type="text/javascript" src="http://cdn.bootcss.com/bootstrap/3.3.0/js/bootstrap.min.js"></script>
+
+    <script type="text/javascript" src="http://cdn.bootcss.com/socket.io/1.5.0/socket.io.min.js"></script>
+    <script type="text/javascript" src="{{ url_for('static', filename='js/fishing.js') }}"></script>
+    <script type="text/javascript">
+      $(document).ready(function() {
+        fishing(io.connect("{{ url_for('index') }}"));
+      });
+    </script>
+  </head>
+  <body>
+    <nav class="navbar navbar-inverse" role="navigation">
+      <div class="container">
+        <div class="navbar-header">
+          <a class="navbar-brand" href="#">Fishing</a>
+        </div>
+        <p class="navbar-text navbar-right">
+          Hi, {{ current_user.id_ }}!
+          <a href="{{ url_for('login') }}" class="navbar-link">[Logout]</a>
+        </p>
+      </div>
+    </nav>
+    <div class="container" id="content"></div>
+  </body>
+</html>
