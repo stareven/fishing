@@ -44,10 +44,22 @@ class User(flask_login.UserMixin):
     def in_room(self):
         return self.room_id is not None
 
+    def login(self):
+        users[self.id_] = self
+        flask_login.login_user(self)
+        return True
+
+    def logout(self):
+        if self.in_room():
+            self.leave_room()
+        users.pop(self.id_, None)
+        flask_login.logout_user()
+        return True
+
     def enter_room(self, room_id):
         if self.id_ in rooms[room_id]:
             logging.warning('already in the room')
-            return True
+            return False
         if self.in_room():
             self.leave_room()
         logging.info('<%s> enter room #%s', self.id_, room_id)
@@ -58,7 +70,7 @@ class User(flask_login.UserMixin):
     def leave_room(self):
         if not self.in_room():
             logging.warning('not in room')
-            return True
+            return False
         logging.info('<%s> leave room #%s', self.id_, self.room_id)
         rooms[self.room_id].remove(self.id_)
         if len(rooms[self.room_id]) == 0:
@@ -91,8 +103,7 @@ def login():
     else:
         user = User(id_)
     logging.info('<%s> login' % user.id_)
-    users[id_] = user
-    flask_login.login_user(user)
+    user.login()
     return flask.redirect(flask.url_for('index'))
 
 
@@ -102,10 +113,7 @@ def logout():
     if user.is_anonymous:
         return flask.redirect(flask.url_for('login'))
     logging.info('<%s> logout' % user.id_)
-    if user.in_room():
-        user.leave_room()
-    users.pop(user.id_, None)
-    flask_login.logout_user()
+    user.logout()
     return flask.redirect(flask.url_for('login'))
 
 
@@ -129,8 +137,7 @@ def authenticated_only(f):
 @authenticated_only
 def connect():
     user = flask_login.current_user
-    if not user.in_room():
-        flask_socketio.emit('hall', rooms)
+    flask_socketio.emit('hall', rooms)
 
 
 @socketio.on('disconnect')
@@ -149,9 +156,9 @@ def enter_room(message):
     if not room_id or room_id not in rooms:
         logging.warning('invalid room id: %s', room_id)
         return
-    user.enter_room(room_id)
+    if user.enter_room(room_id):
+        flask_socketio.emit('hall', rooms, broadcast=True)
     flask_socketio.emit('enter room', {'room': room_id})
-    flask_socketio.emit('hall', rooms, broadcast=True)
 
 
 @socketio.on('leave room')
@@ -159,8 +166,9 @@ def enter_room(message):
 def leave_room(message):
     user = flask_login.current_user
     logging.info('<%s> leave room: %s', user.id_, message)
-    user.leave_room()
-    flask_socketio.emit('hall', rooms, broadcast=True)
+    if user.leave_room():
+        flask_socketio.emit('hall', rooms, broadcast=True)
+    flask_socketio.emit('leave room', {})
 
 
 @socketio.on('create room')

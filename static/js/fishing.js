@@ -1,15 +1,10 @@
 function fishing(socket)
 {
-  socket.on('connect', function() {
-    console.info('connect');
-  });
+  var hall = null;
+  var room = null;
 
-  socket.on('disconnect', function() {
-    console.info('disconnect');
-  });
-
-  socket.on('hall', function(json) {
-    console.info('hall: %o', json);
+  function setup_hall()
+  {
     $content = $('#content');
     $content.empty();
     header = '<div class="page-header"><h1>Hall</h1></div>';
@@ -19,11 +14,11 @@ function fishing(socket)
     rooms += '</div>';
     rooms += '<div class="panel-body">';
     rooms += '<div class="list-group">';
-    for (var room in json) {
+    for (var room in hall) {
       rooms += '<a class="list-group-item room" room-id="' + room + '">';
       rooms += '<h4 class="list-group-item-heading">Room #' + room + '</h4>';
-      for (var i = 0; i < json[room].length; i++) {
-        rooms += '<p class="list-group-item-text">' + json[room][i] + '</p>';
+      for (var i = 0; i < hall[room].length; i++) {
+        rooms += '<p class="list-group-item-text">' + hall[room][i] + '</p>';
       }
       rooms += '</a>';
     }
@@ -43,5 +38,24 @@ function fishing(socket)
     $('#create-room-btn').click(function() {
       socket.emit('create room', {'room': $('#create-room-input').val()});
     });
+  };
+
+  socket.on('connect', function() {
+    console.info('connect');
+  });
+
+  socket.on('disconnect', function() {
+    console.info('disconnect');
+  });
+
+  socket.on('hall', function(json) {
+    console.info('hall: %o', json);
+    hall = json;
+    setup_hall();
+  });
+
+  socket.on('enter room', function(json) {
+    console.info('enter room: %o', json);
+    $content = $('#content');
   });
 };
