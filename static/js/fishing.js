@@ -5,26 +5,23 @@ function fishing(socket)
 
   function setup_hall()
   {
+    console.info('setup hall: %o', hall);
     $content = $('#content');
     $content.empty();
     header = '<div class="page-header"><h1>Hall</h1></div>';
-    rooms = '<div class="panel panel-primary">';
-    rooms += '<div class="panel-heading">';
-    rooms += '<h3 class="panel-title">Room List</h3>';
-    rooms += '</div>';
-    rooms += '<div class="panel-body">';
+    rooms = '';
+    if (!hall || hall.length == 0) {
+      rooms += '<p>no rooms</p>';
+    }
     rooms += '<div class="list-group">';
     for (var room in hall) {
-      rooms += '<a class="list-group-item room" room-id="' + room + '">';
-      rooms += '<h4 class="list-group-item-heading">Room #' + room + '</h4>';
-      for (var i = 0; i < hall[room].length; i++) {
-        rooms += '<p class="list-group-item-text">' + hall[room][i] + '</p>';
+      rooms += '<a class="list-group-item room" room-id="' + hall[room]['id'] + '">';
+      rooms += '<h4 class="list-group-item-heading">Room #' + hall[room]['id'] + '</h4>';
+      for (var i = 0; i < hall[room]['users'].length; i++) {
+        rooms += '<p class="list-group-item-text">' + hall[room]['users'][i] + '</p>';
       }
       rooms += '</a>';
     }
-    rooms += '</div>';
-    rooms += '</div>';
-    rooms += '</div>';
     create = '<div class="input-group">';
     create += '<input type="text" class="form-control" id="create-room-input" placeholder="Create New Room">';
     create += '<span class="input-group-btn"><button class="btn btn-primary" id="create-room-btn"><span class="glyphicon glyphicon-plus"></span></button>';
@@ -33,10 +30,37 @@ function fishing(socket)
     $content.append(rooms);
     $content.append(create);
     $('.room').click(function() {
-      socket.emit('enter room', {'room': $(this).attr('room-id')});
+      socket.emit('join room', {'id': $(this).attr('room-id')});
     });
     $('#create-room-btn').click(function() {
-      socket.emit('create room', {'room': $('#create-room-input').val()});
+      socket.emit('create room', {'id': $('#create-room-input').val()});
+    });
+  };
+
+  function setup_room()
+  {
+    console.info('setup room: %o', room);
+    $content = $('#content');
+    $content.empty();
+    header = '<div class="page-header"><h1>';
+    header += 'Room #' + room['id'];
+    header += '<button class="btn btn-lg btn-danger pull-right" id="leave-room-btn"><span class="glyphicon glyphicon-off"></span></button>';
+    header += '</h1></div>';
+    users = '<ul class="list-group">';
+    for (var i = 0; i < room['users'].length; i++) {
+      users += '<li class="list-group-item">' + room['users'][i] + '</li>';
+    }
+    users += '</ul>';
+    start_disabled = '';
+    if (room && room['users'] && room['users'].length < 2) {
+      start_disabled = ' disabled';
+    }
+    start = '<button class="btn btn-primary" id="start-btn"' + start_disabled + '>start</button>';
+    $content.append(header);
+    $content.append(users);
+    $content.append(start);
+    $('#leave-room-btn').click(function() {
+      socket.emit('leave room', room);
     });
   };
 
@@ -51,11 +75,20 @@ function fishing(socket)
   socket.on('hall', function(json) {
     console.info('hall: %o', json);
     hall = json;
-    setup_hall();
+    if (!room) setup_hall();
   });
 
-  socket.on('enter room', function(json) {
-    console.info('enter room: %o', json);
-    $content = $('#content');
+  socket.on('room', function(json) {
+    console.info('room: %o', json);
+    room = json;
+    setup_room();
+  });
+
+  socket.on('leave room', function(json) {
+    console.info('leave room: %o', json);
+    if (json['id'] == room['id']) {
+      room = null;
+      setup_hall();
+    }
   });
 };

@@ -7,10 +7,12 @@ import flask_socketio
 import logging
 import logging.config
 
+from model import *
+
 logging.config.dictConfig({
     "version": 1,
     "formatters": {
-        "default": {"format": "%(asctime)s %(levelname)s - %(message)s"},
+        "default": {"format": "[%(asctime)s] %(levelname)s [%(filename)s:%(lineno)d] - %(message)s"},
     },
     "handlers": {
         "console": {
@@ -28,56 +30,6 @@ app = flask.Flask(__name__)
 app.secret_key = 'secret'
 login_manager = flask_login.LoginManager(app)
 socketio = flask_socketio.SocketIO(app, logger=True)
-users = {}
-rooms = {}
-
-
-class User(flask_login.UserMixin):
-    def __init__(self, id_):
-        super(User, self).__init__()
-        self.id_ = id_
-        self.room_id = None
-
-    def get_id(self):
-        return self.id_
-
-    def in_room(self):
-        return self.room_id is not None
-
-    def login(self):
-        users[self.id_] = self
-        flask_login.login_user(self)
-        return True
-
-    def logout(self):
-        if self.in_room():
-            self.leave_room()
-        users.pop(self.id_, None)
-        flask_login.logout_user()
-        return True
-
-    def enter_room(self, room_id):
-        if self.id_ in rooms[room_id]:
-            logging.warning('already in the room')
-            return False
-        if self.in_room():
-            self.leave_room()
-        logging.info('<%s> enter room #%s', self.id_, room_id)
-        self.room_id = room_id
-        rooms[room_id].append(self.id_)
-        return True
-
-    def leave_room(self):
-        if not self.in_room():
-            logging.warning('not in room')
-            return False
-        logging.info('<%s> leave room #%s', self.id_, self.room_id)
-        rooms[self.room_id].remove(self.id_)
-        if len(rooms[self.room_id]) == 0:
-            logging.info('empty room #%s, remove', self.room_id)
-            del rooms[self.room_id]
-        self.room_id = None
-        return True
 
 
 @login_manager.user_loader
@@ -102,7 +54,7 @@ def login():
         user = users[id_]
     else:
         user = User(id_)
-    logging.info('<%s> login' % user.id_)
+    logging.info('%s login' % user)
     user.login()
     return flask.redirect(flask.url_for('index'))
 
@@ -112,7 +64,7 @@ def logout():
     user = flask_login.current_user
     if user.is_anonymous:
         return flask.redirect(flask.url_for('login'))
-    logging.info('<%s> logout' % user.id_)
+    logging.info('%s logout' % user)
     user.logout()
     return flask.redirect(flask.url_for('login'))
 
@@ -137,55 +89,63 @@ def authenticated_only(f):
 @authenticated_only
 def connect():
     user = flask_login.current_user
-    flask_socketio.emit('hall', rooms)
+    logging.info('%s connect', user)
+    flask_socketio.emit('hall', [room.json() for room in rooms.values()])
+    if user.in_room():
+        user.room.broadcast()
 
 
 @socketio.on('disconnect')
 @authenticated_only
 def disconnect():
     user = flask_login.current_user
-    logging.info('<%s> disconnect', user.id_)
+    logging.info('%s disconnect', user)
 
 
-@socketio.on('enter room')
+@socketio.on('join room')
 @authenticated_only
-def enter_room(message):
+def join_room(message):
     user = flask_login.current_user
-    logging.info('<%s> enter room: %s', user.id_, message)
-    room_id = message['room']
+    logging.info('%s join room: %s', user, message)
+    room_id = message['id']
     if not room_id or room_id not in rooms:
         logging.warning('invalid room id: %s', room_id)
         return
-    if user.enter_room(room_id):
-        flask_socketio.emit('hall', rooms, broadcast=True)
-    flask_socketio.emit('enter room', {'room': room_id})
+    room = rooms[room_id]
+    if user.join_room(room):
+        flask_socketio.emit('hall', [r.json() for r in rooms.values()], broadcast=True)
 
 
 @socketio.on('leave room')
 @authenticated_only
 def leave_room(message):
     user = flask_login.current_user
-    logging.info('<%s> leave room: %s', user.id_, message)
-    if user.leave_room():
-        flask_socketio.emit('hall', rooms, broadcast=True)
-    flask_socketio.emit('leave room', {})
+    logging.info('%s leave room: %s', user, message)
+    room_id = message['id']
+    if not room_id or room_id not in rooms:
+        logging.warning('invalid room id: %s', room_id)
+        return
+    room = rooms[room_id]
+    if user.leave_room(room):
+        flask_socketio.emit('hall', [r.json() for r in rooms.values()], broadcast=True)
 
 
 @socketio.on('create room')
 @authenticated_only
 def create_room(message):
     user = flask_login.current_user
-    logging.info('<%s> create room: %s', user.id_, message)
-    room_id = message['room']
+    logging.info('%s create room: %s', user, message)
+    room_id = message['id']
     if not room_id:
         logging.warning('invalid room id: %s', room_id)
         return
     if room_id in rooms:
         logging.warning('already exist: %s', room_id)
         return
-    rooms[room_id] = []
-    user.enter_room(room_id)
-    flask_socketio.emit('hall', rooms, broadcast=True)
+    room = Room(room_id)
+    rooms[room_id] = room
+    user.join_room(room)
+    flask_socketio.emit('hall', [r.json() for r in rooms.values()], broadcast=True)
 
 
 if __name__ == '__main__':
