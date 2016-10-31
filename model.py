@@ -23,21 +23,24 @@ class Hall:
     def join(self, user):
         logging.info('%s join hall', user)
         if user.id_ in self.users:
-            logging.info('%s already in hall', user)
-            return False
+            logging.warning('%s already in hall', user)
+        flask_socketio.join_room(self.id_)
         self.users[user.id_] = user
-        if not user.is_authenticated:
-            flask_socketio.join_room(self.id_)
+        self.broadcast()
         return True
 
     def leave(self, user):
         logging.info('%s leave hall', user)
         if user.id_ not in self.users:
-            logging.info('%s not in hall', user)
-            return False
-        del self.users[user.id_]
+            logging.warning('%s not in hall', user)
+        else:
+            del self.users[user.id_]
         flask_socketio.leave_room(self.id_)
+        self.broadcast()
         return True
+
+    def broadcast(self):
+        flask_socketio.emit('hall', [r.json() for r in rooms.values()], room=self.id_)
 
 
 hall = Hall('<hall>')
@@ -47,8 +50,8 @@ class User(flask_login.UserMixin):
     def __init__(self, id_):
         super(User, self).__init__()
         self.id_ = id_
+        self.connected = False
         self.room = hall
-        hall.join(self)
 
     def __str__(self):
         return '<User: %s@%s>' % (self.id_, self.room.id_)
@@ -56,35 +59,45 @@ class User(flask_login.UserMixin):
     def get_id(self):
         return self.id_
 
+    def connect(self):
+        self.connected = True
+        self.room.join(self)
+
+    def disconnect(self):
+        self.connected = False
+
     def in_room(self):
         return self.room is not hall
 
     def login(self):
         logging.info('%s login', self)
-        users[self.id_] = self
         flask_login.login_user(self)
+        users[self.id_] = self
         return True
 
     def logout(self):
         logging.info('%s logout', self)
         if self.in_room(): self.leave_room(self.room)
         hall.leave(self)
-        del users[self.id_]
         flask_login.logout_user()
+        del users[self.id_]
+        flask_socketio.emit('logout')
         return True
 
     def join_room(self, room):
         logging.info('%s join %s', self, room)
-        if self.in_room(): self.leave_room(self.room)
-        else: hall.leave(self)
+        if self.in_room() and self.room is room:
+            logging.warning('already in room')
+            return True
         if not room.join(self): return False
+        self.room.leave(self)
         self.room = room
         return True
 
     def leave_room(self, room):
         logging.info('%s leave %s', self, room)
-        if not room.leave(self): return False
         if not hall.join(self): return False
+        room.leave(self)
         self.room = hall
         flask_socketio.emit('leave room', {'id': room.id_})
         if not room.users:
@@ -102,22 +115,23 @@ class Room:
         return '<Room: %s, users: %s>' % (self.id_, ','.join(user.id_ for user in self.users.values()))
 
     def join(self, user):
+        logging.info('%s join room', user)
         if user.id_ in self.users:
             logging.warning('already in the room')
-            return False
-        if len(self.users) >= 2:
+        if user.id_ not in self.users and len(self.users) >= 2:
             logging.warning('room occuppied')
             return False
-        self.users[user.id_] = user
         flask_socketio.join_room(self.id_)
+        self.users[user.id_] = user
         self.broadcast()
         return True
 
     def leave(self, user):
+        logging.info('%s leave room', user)
         if user.id_ not in self.users:
             logging.warning('not in room')
-            return False
-        del self.users[user.id_]
+        else:
+            del self.users[user.id_]
         flask_socketio.leave_room(self.id_)
         self.broadcast()
         return True

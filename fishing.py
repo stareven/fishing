@@ -81,8 +81,7 @@ def connect():
     user = flask_login.current_user
     logging.info('%s connect', user)
     flask_socketio.emit('hall', [room.json() for room in rooms.values()])
-    if user.in_room():
-        user.room.broadcast()
+    user.connect()
 
 
 @socketio.on('disconnect')
@@ -90,6 +89,7 @@ def connect():
 def disconnect():
     user = flask_login.current_user
     logging.info('%s disconnect', user)
+    user.disconnect()
 
 
 @socketio.on('logout')
@@ -98,7 +98,6 @@ def logout():
     user = flask_login.current_user
     logging.info('%s logout' % user)
     user.logout()
-    flask_socketio.emit('logout')
 
 
 @socketio.on('join room')
@@ -111,8 +110,8 @@ def join_room(message):
         logging.warning('invalid room id: %s', room_id)
         return
     room = rooms[room_id]
-    if user.join_room(room):
-        flask_socketio.emit('hall', [r.json() for r in rooms.values()], broadcast=True)
+    user.join_room(room)
+    hall.broadcast()
 
 
 @socketio.on('leave room')
@@ -125,8 +124,8 @@ def leave_room(message):
         logging.warning('invalid room id: %s', room_id)
         return
     room = rooms[room_id]
-    if user.leave_room(room):
-        flask_socketio.emit('hall', [r.json() for r in rooms.values()], broadcast=True)
+    user.leave_room(room)
+    hall.broadcast()
 
 
 @socketio.on('create room')
@@ -144,7 +143,7 @@ def create_room(message):
     room = Room(room_id)
     rooms[room_id] = room
     user.join_room(room)
-    flask_socketio.emit('hall', [r.json() for r in rooms.values()], broadcast=True)
+    hall.broadcast()
 
 
 if __name__ == '__main__':
