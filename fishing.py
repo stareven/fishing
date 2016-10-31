@@ -59,16 +59,6 @@ def login():
     return flask.redirect(flask.url_for('index'))
 
 
-@app.route('/logout')
-def logout():
-    user = flask_login.current_user
-    if user.is_anonymous:
-        return flask.redirect(flask.url_for('login'))
-    logging.info('%s logout' % user)
-    user.logout()
-    return flask.redirect(flask.url_for('login'))
-
-
 @login_manager.unauthorized_handler
 def unauthorized_handler():
     return flask.redirect(flask.url_for('login'))
@@ -100,6 +90,15 @@ def connect():
 def disconnect():
     user = flask_login.current_user
     logging.info('%s disconnect', user)
+
+
+@socketio.on('logout')
+@authenticated_only
+def logout():
+    user = flask_login.current_user
+    logging.info('%s logout' % user)
+    user.logout()
+    flask_socketio.emit('logout')
 
 
 @socketio.on('join room')

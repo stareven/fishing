@@ -64,6 +64,10 @@ function fishing(socket)
     });
   };
 
+  $('#logout').click(function() {
+    socket.emit('logout');
+  });
+
   socket.on('connect', function() {
     console.info('connect');
   });
@@ -90,5 +94,10 @@ function fishing(socket)
       room = null;
       setup_hall();
     }
+  });
+
+  socket.on('logout', function() {
+    console.info('logout');
+    window.location.href='/';
   });
 };
