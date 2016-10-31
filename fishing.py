@@ -111,7 +111,7 @@ def join_room(message):
         return
     room = rooms[room_id]
     user.join_room(room)
-    hall.broadcast()
+    Hall().broadcast()
 
 
 @socketio.on('leave room')
@@ -125,7 +125,7 @@ def leave_room(message):
         return
     room = rooms[room_id]
     user.leave_room(room)
-    hall.broadcast()
+    Hall().broadcast()
 
 
 @socketio.on('create room')
@@ -143,7 +143,7 @@ def create_room(message):
     room = Room(room_id)
     rooms[room_id] = room
     user.join_room(room)
-    hall.broadcast()
+    Hall().broadcast()
 
 
 if __name__ == '__main__':

@@ -1,5 +1,7 @@
 function fishing(socket)
 {
+  console.info('fishing');
+
   var hall = null;
   var room = null;
 
