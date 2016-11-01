@@ -1,17 +1,18 @@
-function fishing(socket)
+function fishing(me, socket)
 {
   console.info('fishing');
 
   var hall = null;
   var room = null;
+  var game = null;
 
   function setup_hall()
   {
     console.info('setup hall: %o', hall);
     $content = $('#content');
     $content.empty();
-    header = '<div class="page-header"><h1>Hall</h1></div>';
-    rooms = '';
+    var header = '<div class="page-header"><h1>Hall</h1></div>';
+    var rooms = '';
     if (!hall || hall.length == 0) {
       rooms += '<p>no rooms</p>';
     }
@@ -24,13 +25,14 @@ function fishing(socket)
       }
       rooms += '</a>';
     }
-    create = '<div class="input-group">';
+    var create = '<div class="input-group">';
     create += '<input type="text" class="form-control" id="create-room-input" placeholder="Create New Room">';
     create += '<span class="input-group-btn"><button class="btn btn-primary" id="create-room-btn"><span class="glyphicon glyphicon-plus"></span></button>';
     create += '</div>';
     $content.append(header);
     $content.append(rooms);
     $content.append(create);
+
     $('.room').click(function() {
       socket.emit('join room', {'id': $(this).attr('room-id')});
     });
@@ -44,27 +46,91 @@ function fishing(socket)
     console.info('setup room: %o', room);
     $content = $('#content');
     $content.empty();
-    header = '<div class="page-header"><h1>';
+    var header = '<div class="page-header"><h1>';
     header += 'Room #' + room['id'];
     header += '<button class="btn btn-lg btn-danger pull-right" id="leave-room-btn"><span class="glyphicon glyphicon-off"></span></button>';
     header += '</h1></div>';
-    users = '<ul class="list-group">';
+    var users = '<ul class="list-group">';
     for (var i = 0; i < room['users'].length; i++) {
       users += '<li class="list-group-item">' + room['users'][i] + '</li>';
     }
     users += '</ul>';
-    start_disabled = '';
-    if (room && room['users'] && room['users'].length < 2) {
-      start_disabled = ' disabled';
-    }
-    start = '<button class="btn btn-primary" id="start-btn"' + start_disabled + '>start</button>';
+    var start = '<button class="btn btn-primary" id="start-btn">start</button>';
     $content.append(header);
     $content.append(users);
     $content.append(start);
+
+    if (room && room['users'] && room['users'].length < 2) {
+      $('#start-btn').attr('disabled', 'disabled');
+    }
     $('#leave-room-btn').click(function() {
       socket.emit('leave room', room);
     });
+    $('#start-btn').click(function() {
+      socket.emit('start game', room)
+    });
   };
+
+  function setup_game()
+  {
+    console.info('setup game: %o', game);
+    $content = $('#content');
+    $content.empty();
+    var header = '<div class="page-header"><h1>';
+    header += 'Game #' + game['id'];
+    header += '</h1></div>';
+    var table = '<div class="well">';
+    table += '<h4>table> ';
+    if (!game['table'] || game['table'].length == 0) {
+      table += 'empty...';
+    } else {
+      for (var i = 0; i < game['table'].length; i++) {
+        table += game['table'][i] + ' => ';
+      }
+    }
+    table += '</h4>';
+    table += '<p>[' + game['current']['id'] + '] remains ' + game['current']['remains'] + ' card(s)';
+    table += '<p>[' + game['waiting']['id'] + '] remains ' + game['waiting']['remains'] + ' card(s)';
+    table += '</div>';
+    var myturn = game['current']['id'] == me;
+    var cards = [];
+    if (myturn)
+      cards = game['current']['front'];
+    else
+      cards = game['waiting']['front'];
+    var hands = '<div class="btn-group btn-group-lg pull-right">';
+    for (var i = 0; i < cards.length; i++) {
+      hands += '<button type="button" class="btn btn-primary play-btn">' + cards[i] + '</button>';
+    }
+    hands += '</div>'
+    $content.append(header);
+    $content.append(table);
+    $content.append(hands);
+    if (!myturn) {
+      $('.play-btn').attr('disabled', 'disabled');
+    }
+    $('.play-btn').click(function() {
+      var message = {
+        'id': game['id'],
+        'card': $(this).html(),
+      };
+      socket.emit('play card', message);
+    });
+  }
+
+  function setup_ui()
+  {
+    console.info('setup ui');
+    if (game) {
+      setup_game();
+      return;
+    }
+    if (room) {
+      setup_room();
+      return;
+    }
+    setup_hall();
+  }
 
   $('#logout').click(function() {
     socket.emit('logout');
@@ -81,21 +147,27 @@ function fishing(socket)
   socket.on('hall', function(json) {
     console.info('hall: %o', json);
     hall = json;
-    if (!room) setup_hall();
+    setup_ui();
   });
 
   socket.on('room', function(json) {
     console.info('room: %o', json);
     room = json;
-    setup_room();
+    setup_ui();
   });
 
   socket.on('leave room', function(json) {
     console.info('leave room: %o', json);
-    if (json['id'] == room['id']) {
-      room = null;
-      setup_hall();
-    }
+    if (json['id'] != room['id']) return;
+    room = null;
+    setup_ui();
+  });
+
+  socket.on('game', function(json) {
+    console.info('game: %o', json);
+    if (json['id'] != room['id']) return;
+    game = json;
+    setup_ui();
   });
 
   socket.on('logout', function() {

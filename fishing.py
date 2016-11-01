@@ -80,7 +80,6 @@ def authenticated_only(f):
 def connect():
     user = flask_login.current_user
     logging.info('%s connect', user)
-    flask_socketio.emit('hall', [room.json() for room in rooms.values()])
     user.connect()
 
 
@@ -146,5 +145,53 @@ def create_room(message):
     Hall().broadcast()
 
 
+@socketio.on('start game')
+@authenticated_only
+def start_game(message):
+    user = flask_login.current_user
+    logging.info('%s start game: %s', user, message)
+    room_id = message['id']
+    if not room_id:
+        logging.warning('invalid room id: %s', room_id)
+        return
+    room = rooms[room_id]
+    if user.room is not room:
+        logging.warning('user not in room')
+        return
+    room.start_game()
+
+
+@socketio.on('play card')
+@authenticated_only
+def start_game(message):
+    user = flask_login.current_user
+    logging.info('%s play card: %s', user, message)
+    game_id = message['id']
+    if not game_id:
+        logging.warning('invalid game id: %s', game_id)
+        return
+    game = games[game_id]
+    assert user.id_ in players
+    player = players[user.id_]
+    card = message['card']
+    game.play(player, card)
+
+
+def test():
+    room = Room('star')
+    star = User('star')
+    star.room = room
+    room.users[star.id_] = star
+    safari = User('safari')
+    safari.room = room
+    room.users[safari.id_] = safari
+    users[star.id_] = star
+    users[safari.id_] = safari
+    rooms[room.id_] = room
+    # game = Game(room)
+    # game.start()
+
+
 if __name__ == '__main__':
+    test()
     socketio.run(app, host='0.0.0.0', debug=True)

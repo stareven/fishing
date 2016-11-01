@@ -25,8 +25,9 @@
     <script type="text/javascript" src="{{ url_for('static', filename='js/fishing.js') }}"></script>
     <script type="text/javascript">
       $(document).ready(function() {
-        socket = io.connect("{{ url_for('index') }}");
-        fishing(socket);
+        var me = "{{ current_user.id_ }}";
+        var socket = io.connect("{{ url_for('index') }}");
+        fishing(me, socket);
       });
     </script>
   </head>
