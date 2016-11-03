@@ -78,43 +78,63 @@ function fishing(me, socket)
     $content.empty();
     var header = '<div class="page-header"><h1>';
     header += 'Game #' + game['id'];
+    header += '<button class="btn btn-lg btn-danger pull-right" id="leave-room-btn"><span class="glyphicon glyphicon-off"></span></button>';
     header += '</h1></div>';
-    var table = '<div class="well">';
-    table += '<h4>table> ';
-    if (!game['table'] || game['table'].length == 0) {
-      table += 'empty...';
-    } else {
-      for (var i = 0; i < game['table'].length; i++) {
-        table += game['table'][i] + ' => ';
-      }
-    }
-    table += '</h4>';
-    table += '<p>[' + game['current']['id'] + '] remains ' + game['current']['remains'] + ' card(s)';
-    table += '<p>[' + game['waiting']['id'] + '] remains ' + game['waiting']['remains'] + ' card(s)';
-    table += '</div>';
-    var myturn = game['current']['id'] == me;
-    var cards = [];
-    if (myturn)
-      cards = game['current']['front'];
-    else
-      cards = game['waiting']['front'];
-    var hands = '<div class="btn-group btn-group-lg pull-right">';
-    for (var i = 0; i < cards.length; i++) {
-      hands += '<button type="button" class="btn btn-primary play-btn">' + cards[i] + '</button>';
-    }
-    hands += '</div>'
     $content.append(header);
-    $content.append(table);
-    $content.append(hands);
-    if (!myturn) {
-      $('.play-btn').attr('disabled', 'disabled');
+
+    if (game['current']['front'].length == 0 || game['waiting']['front'].length == 0) {
+      var result = '';
+      if (game['current']['id'] == me && game['current']['front'].length == 0 ||
+          game['waiting']['id'] == me && game['waiting']['front'].length == 0)
+        result = '<div class="alert alert-danger" role="alert">You Lose...</div>'
+      else
+        result = '<div class="alert alert-success" role="alert">You Win!!!</div>'
+      var start = '<button class="btn btn-primary" id="start-btn">start</button>';
+      $content.append(result);
+      $content.append(start);
+      $('#start-btn').click(function() {
+        socket.emit('start game', room)
+      });
+    } else {
+      var table = '<div class="well">';
+      table += '<h4>table> ';
+      if (!game['table'] || game['table'].length == 0) {
+        table += 'empty...';
+      } else {
+        for (var i = 0; i < game['table'].length; i++) {
+          table += game['table'][i] + ' => ';
+        }
+      }
+      table += '</h4>';
+      table += '<p>[' + game['current']['id'] + '] remains ' + game['current']['remains'] + ' card(s)';
+      table += '<p>[' + game['waiting']['id'] + '] remains ' + game['waiting']['remains'] + ' card(s)';
+      table += '</div>';
+      var myturn = game['current']['id'] == me;
+      var cards = [];
+      if (myturn)
+        cards = game['current']['front'];
+      else
+        cards = game['waiting']['front'];
+      var hands = '<div class="btn-group btn-group-lg pull-right">';
+      for (var i = 0; i < cards.length; i++) {
+        hands += '<button type="button" class="btn btn-primary play-btn">' + cards[i] + '</button>';
+      }
+      hands += '</div>'
+      $content.append(table);
+      $content.append(hands);
+      if (!myturn) {
+        $('.play-btn').attr('disabled', 'disabled');
+      }
+      $('.play-btn').click(function() {
+        var message = {
+          'id': game['id'],
+          'card': $(this).html(),
+        };
+        socket.emit('play card', message);
+      });
     }
-    $('.play-btn').click(function() {
-      var message = {
-        'id': game['id'],
-        'card': $(this).html(),
-      };
-      socket.emit('play card', message);
+    $('#leave-room-btn').click(function() {
+      socket.emit('leave room', room);
     });
   }
 
@@ -167,6 +187,13 @@ function fishing(me, socket)
     console.info('game: %o', json);
     if (json['id'] != room['id']) return;
     game = json;
+    setup_ui();
+  });
+
+  socket.on('game over', function(json) {
+    console.info('game over: %o', json);
+    if (json['id'] != game['id']) return;
+    game = null;
     setup_ui();
   });
 

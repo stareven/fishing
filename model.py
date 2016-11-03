@@ -115,6 +115,9 @@ class Room:
             logging.warning('not in room')
         else:
             del self.users[user.id_]
+            if self.game:
+                self.game.clear()
+                self.game = None
         flask_socketio.leave_room(URID(self))
         self.broadcast()
         if not self.users:
@@ -128,7 +131,7 @@ class Room:
             self.game.broadcast()
 
     def start_game(self):
-        if self.game is not None:
+        if self.game is not None and not self.game.over():
             logging.warning('game already started')
             return False
         if len(self.users) != 2:
@@ -195,16 +198,6 @@ class Card:
         assert symbol in Card.symbols and order in Card.orders
         return Card.symbols.index(symbol) * len(Card.orders) + Card.orders.index(order)
 
-    @staticmethod
-    def play(table, card):
-        assert 0 <= card < Card.total
-        if card % len(Card.orders) == Card.J:
-            return [], table + [card]
-        for i, c in enumerate(table):
-            if c % len(Card.orders) == card % len(Card.orders):
-                return table[:i], table[i:] + [card]
-        return table + [card], []
-
 
 class Player:
     def __init__(self, user, game):
@@ -246,15 +239,29 @@ class Game:
         rand_cards = list(range(Card.total))
         random.shuffle(rand_cards)
         logging.info('rand cards: %s', rand_cards)
-        # self.current_player.gain_cards(rand_cards[:Card.total // 2])
-        self.table = rand_cards[:3]
-        self.current_player.gain_cards(rand_cards[3:Card.total // 2])
+        self.current_player.gain_cards(rand_cards[:Card.total // 2])
         self.waiting_player.gain_cards(rand_cards[Card.total // 2:])
         players[self.current_player.user.id_] = self.current_player
         players[self.waiting_player.user.id_] = self.waiting_player
         self.broadcast()
 
     def play(self, player, card_str):
+        def doPlay(card):
+            assert 0 <= card < Card.total
+            if card % len(Card.orders) == Card.J:
+                self.current_player.gain_cards(self.table + [card])
+                self.table = []
+            else:
+                for i, c in enumerate(self.table):
+                    if c % len(Card.orders) == card % len(Card.orders):
+                        self.current_player.gain_cards(self.table[i:] + [card])
+                        self.table = self.table[:i]
+                        break
+                else:
+                    self.table.append(card)
+            self.current_player, self.waiting_player = self.waiting_player, self.current_player
+            self.broadcast()
+
         logging.info('%s play %s', player, card_str)
         if player is not self.current_player:
             logging.warning('not my turn')
@@ -264,11 +271,16 @@ class Game:
             logging.warning('can not play')
             return False
         player.cards.remove(card)
-        table, gain = Card.play(self.table, card)
-        self.table = table
-        self.current_player.gain_cards(gain)
-        self.current_player, self.waiting_player = self.waiting_player, self.current_player
-        self.broadcast()
+        doPlay(card)
+
+    def over(self):
+        return not self.current_player.cards or not self.waiting_player.cards
+
+    def clear(self):
+        del players[self.current_player.user.id_]
+        del players[self.waiting_player.user.id_]
+        del games[self.room.id_]
+        flask_socketio.emit('game over', {'id': self.room.id_}, room=URID(self.room))
 
     def broadcast(self):
         message = {}

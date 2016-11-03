@@ -27,7 +27,7 @@ logging.config.dictConfig({
 
 
 app = flask.Flask(__name__)
-app.secret_key = 'secret'
+app.secret_key = 'fishing'
 login_manager = flask_login.LoginManager(app)
 socketio = flask_socketio.SocketIO(app, logger=True)
 
@@ -163,7 +163,7 @@ def start_game(message):
 
 @socketio.on('play card')
 @authenticated_only
-def start_game(message):
+def play_card(message):
     user = flask_login.current_user
     logging.info('%s play card: %s', user, message)
     game_id = message['id']
