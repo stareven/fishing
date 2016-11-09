@@ -249,12 +249,15 @@ class Game:
         def doPlay(card):
             assert 0 <= card < Card.total
             if card % len(Card.orders) == Card.J:
-                self.current_player.gain_cards(self.table + [card])
+                gains = self.table
+                random.shuffle(gains)
+                self.current_player.gain_cards(gains)
                 self.table = []
             else:
                 for i, c in enumerate(self.table):
                     if c % len(Card.orders) == card % len(Card.orders):
-                        self.current_player.gain_cards(self.table[i:] + [card])
+                        gains = self.table[i:] + [card]
+                        self.current_player.gain_cards(gains)
                         self.table = self.table[:i]
                         break
                 else:
