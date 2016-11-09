@@ -184,7 +184,9 @@ class Card:
     symbols = ['♠', '♥', '♣', '♦']
     orders = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']
     total = 52
+    A = 0
     J = 10
+    K = 12
 
     @staticmethod
     def id2str(id_):
@@ -247,13 +249,33 @@ class Game:
 
     def play(self, player, card_str):
         def doPlay(card):
-            assert 0 <= card < Card.total
-            if card % len(Card.orders) == Card.J:
+            def play_a():
+                gains = self.table[-1:]
+                self.current_player.gain_cards(gains)
+                self.table = self.table[:-1]
+
+            def play_j():
                 gains = self.table
                 random.shuffle(gains)
                 self.current_player.gain_cards(gains)
                 self.table = []
-            else:
+
+            def play_k():
+                gains = self.table[-3:]
+                random.shuffle(gains)
+                self.current_player.gain_cards(gains)
+                self.table = self.table[:-3]
+
+            assert 0 <= card < Card.total
+            funcs = {
+                Card.A: play_a,
+                Card.J: play_j,
+                Card.K: play_k,
+            }
+            try:
+                order = card % len(Card.orders)
+                funcs[order]()
+            except KeyError:
                 for i, c in enumerate(self.table):
                     if c % len(Card.orders) == card % len(Card.orders):
                         gains = self.table[i:] + [card]
