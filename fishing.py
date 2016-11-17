@@ -193,5 +193,6 @@ def test():
 
 
 if __name__ == '__main__':
-    test()
-    socketio.run(app, host='0.0.0.0', debug=True)
+    #test()
+    #socketio.run(app, host='0.0.0.0', debug=True)
+    socketio.run(app, host='0.0.0.0')
